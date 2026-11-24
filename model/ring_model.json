@@ -1,0 +1,44 @@
+{
+  "version": "1.0",
+  "created_at": "2026-11-24 17:21:52",
+  "ring_roi": [
+    0.2,
+    0.2,
+    0.6,
+    0.6
+  ],
+  "a_roi": [
+    0.34,
+    0.38,
+    0.44,
+    0.4
+  ],
+  "templates": {
+    "present": [
+      "templates/present_00.png"
+    ],
+    "absent": [
+      "templates/absent_00.png"
+    ],
+    "a": [
+      "templates/a_00.png"
+    ]
+  },
+  "stats": {
+    "n_absent": 1,
+    "n_present": 1,
+    "n_a": 1,
+    "valley_th": 82.0
+  },
+  "source_images": {
+    "absent": [
+      "C:/Users/Chenzhichao/Desktop/新建文件夹 (2)/1.jpg"
+    ],
+    "present": [
+      "C:/Users/Chenzhichao/Desktop/新建文件夹 (2)/2.jpg"
+    ],
+    "a": [
+      "C:/Users/Chenzhichao/Desktop/新建文件夹 (2)/3.jpg"
+    ]
+  }
+}

@@ -1,0 +1,44 @@
+# ===== Python 缓存 =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ===== 打包产物 =====
+build/
+build_probe/
+dist/
+dist_probe/
+*.manifest
+
+# ===== 训练模板大图（临时产物，实拍后重新生成） =====
+model/templates/
+
+# ===== 采集数据 / 数据集（含现场照片，不入库） =====
+captures/
+dataset/
+
+# ===== 调试与验证截图 =====
+gui_*.png
+verdict_*.png
+selftest*.png
+selftest*.txt
+icon_selftest.png
+result_*.jpg
+probe_with*.jpg
+probe_without*.jpg
+state_*_core.jpg
+state_*_crop.jpg
+sim_images/
+sim_*.png
+sim_*.jpg
+simulation_1_2_3.png
+diff_1_2.png
+
+# ===== 日志 =====
+*.log
+logs/
+
+# ===== WorkBuddy 内部数据 =====
+.workbuddy/

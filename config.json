@@ -1,0 +1,80 @@
+{
+  "camera": {
+    "source": "demo",
+    "device_id": "",
+    "exposure_auto": false,
+    "exposure_us": 20000,
+    "gain": 0.0,
+    "fps_limit": 8.0,
+    "file_dir": "",
+    "file_loop": true
+  },
+  "detect": {
+    "ring_mode": "geometry",
+    "max_side": 1200,
+    "roi_ratio": 0.6,
+    "valley_th": 82.0,
+    "margin_min": 0.05,
+    "hough_param2": 45,
+    "radius_lo": 0.18,
+    "radius_hi": 0.42,
+    "band_lo": 0.3,
+    "band_hi": 1.25,
+    "ring_roi": [
+      0.2,
+      0.2,
+      0.6,
+      0.6
+    ],
+    "template_th": 0.82,
+    "template_margin": 0.05,
+    "scale_search": 0.06,
+    "a_feature_mode": "hybrid",
+    "a_min_votes": 2,
+    "a_score_th": 0.78,
+    "a_roi": [
+      0.34,
+      0.38,
+      0.44,
+      0.4
+    ],
+    "a_hole_roi": [
+      0.48,
+      0.54,
+      0.2,
+      0.18
+    ],
+    "a_hole_param2": 22,
+    "a_hole_r_lo": 0.03,
+    "a_hole_r_hi": 0.16,
+    "a_hole_min_offset": 0.12,
+    "a_edge_roi": [
+      0.44,
+      0.52,
+      0.12,
+      0.15
+    ],
+    "a_edge_min_len": 60,
+    "a_edge_th": 80,
+    "center_roi": [
+      0.46,
+      0.58,
+      0.08,
+      0.09
+    ],
+    "center_edge_th": 0.22,
+    "require_center_clear": true,
+    "ring_confirm_frames": 3,
+    "a_confirm_frames": 2,
+    "ring_removal_is_fault": true,
+    "save_event_frames": true
+  },
+  "paths": {
+    "dataset": "dataset",
+    "model": "model/ring_model.json",
+    "captures": "captures",
+    "events": "captures/events",
+    "logs": "logs"
+  },
+  "app_version": "1.0.1"
+}
