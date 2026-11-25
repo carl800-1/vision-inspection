@@ -10,10 +10,20 @@
     "file_loop": true
   },
   "detect": {
-    "ring_mode": "geometry",
+    "ring_mode": "crop_template",
+    "use_locator": false,
+    "locator_th": 0.45,
+    "crop_half": 130,
+    "ring_ncc_th": 0.62,
+    "a_ncc_th": 0.55,
+    "locator_scale_search": 0.1,
+    "ring_center": [
+      0.5069,
+      0.4896
+    ],
     "max_side": 1200,
     "roi_ratio": 0.6,
-    "valley_th": 82.0,
+    "valley_th": 55.0,
     "margin_min": 0.05,
     "hough_param2": 45,
     "radius_lo": 0.18,
@@ -33,26 +43,26 @@
     "a_min_votes": 2,
     "a_score_th": 0.78,
     "a_roi": [
-      0.34,
-      0.38,
-      0.44,
-      0.4
+      0.0,
+      0.0,
+      1.0,
+      1.0
     ],
     "a_hole_roi": [
-      0.48,
-      0.54,
-      0.2,
-      0.18
+      0.45,
+      0.05,
+      0.5,
+      0.45
     ],
     "a_hole_param2": 22,
     "a_hole_r_lo": 0.03,
     "a_hole_r_hi": 0.16,
     "a_hole_min_offset": 0.12,
     "a_edge_roi": [
-      0.44,
-      0.52,
-      0.12,
-      0.15
+      0.4,
+      0.05,
+      0.55,
+      0.55
     ],
     "a_edge_min_len": 60,
     "a_edge_th": 80,
@@ -76,5 +86,5 @@
     "events": "captures/events",
     "logs": "logs"
   },
-  "app_version": "1.0.1"
+  "app_version": "1.0.2"
 }

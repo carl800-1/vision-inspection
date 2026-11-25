@@ -24,8 +24,21 @@ class CameraConfig:
 @dataclass
 class DetectConfig:
     """检测与防错参数。"""
-    # 环判定模式：geometry=径向亮度剖面（默认，稳定）；template=示教模板；hybrid=结合
-    ring_mode: str = "geometry"
+    # 环判定模式：
+    #   crop_template = 先自动定位环心→裁固定小图→模板NCC（新方案，推荐）
+    #   geometry      = 径向亮度剖面（旧方案，圆心易错，已弃用）
+    #   template      = 直接在归一化ROI上匹配（旧方案）
+    #   hybrid        = 旧方案的模板优先
+    ring_mode: str = "crop_template"
+
+    # --- 裁剪模板法（新方案）参数 ---
+    use_locator: bool = False          # 是否启用运行时环心微调搜索；相机固定时关闭最稳
+    locator_th: float = 0.45           # 环定位模板全图匹配的最低 NCC 分数
+    crop_half: int = 130               # 以环心为中心的裁剪半径（在 max_side 尺度下）
+    ring_ncc_th: float = 0.62          # 有环模板 NCC 阈值：高于它判 PLACED
+    a_ncc_th: float = 0.55             # 工件A模板 NCC 阈值：高于它判 A 到位
+    locator_scale_search: float = 0.10 # 定位模板尺度搜索范围
+    ring_center: list = field(default_factory=lambda: [0.0, 0.0])  # 环心种子(归一化x,y)，[0,0]=训练时自动定位
 
     # --- 几何法参数（无模型时也能工作） ---
     max_side: int = 1200                # 大图先等比缩到该尺寸再检测，0 表示不缩放
@@ -83,7 +96,7 @@ class AppConfig:
     camera: CameraConfig = field(default_factory=CameraConfig)
     detect: DetectConfig = field(default_factory=DetectConfig)
     paths: PathConfig = field(default_factory=PathConfig)
-    app_version: str = "1.0.1"
+    app_version: str = "1.0.2"
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

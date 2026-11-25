@@ -31,10 +31,26 @@ probe_without*.jpg
 state_*_core.jpg
 state_*_crop.jpg
 sim_images/
+new_imgs/
 sim_*.png
 sim_*.jpg
 simulation_1_2_3.png
 diff_1_2.png
+diff_12_map.png
+new_compare_crop.png
+new_diff12.png
+new_grid2.png
+new_ring_compare.png
+new_ring_zoom.png
+center_grid.png
+compare_123_center.png
+debug_radii.png
+debug_radii.py
+locator_heatmap.png
+locator_template.png
+valley_corrected.png
+valley_marked.png
+mark_valley.py
 
 # ===== 日志 =====
 *.log

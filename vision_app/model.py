@@ -10,7 +10,7 @@ from typing import Dict, List
 
 from .imageio import imread_unicode, imwrite_unicode
 
-MODEL_VERSION = "1.0"
+MODEL_VERSION = "1.1"
 
 
 @dataclass
@@ -19,11 +19,20 @@ class Model:
     created_at: str = ""
     ring_roi: List[float] = field(default_factory=lambda: [0.2, 0.2, 0.6, 0.6])
     a_roi: List[float] = field(default_factory=lambda: [0.0, 0.0, 1.0, 1.0])
-    # key: present / absent / a → 模板图片相对路径列表
+    # key: present / absent / a / locator → 模板图片相对路径列表
     templates: Dict[str, List[str]] = field(default_factory=dict)
     stats: Dict[str, float] = field(default_factory=dict)
     source_images: Dict[str, List[str]] = field(default_factory=dict)
     base_dir: str = ""
+    # 裁剪模板法：环心（训练后验坐标，按训练图尺寸）与定位模板
+    ring_center: List[float] = field(default_factory=lambda: [0.0, 0.0])  # 归一化 x,y
+    crop_half: int = 130                # 裁剪半径（在 max_side 尺度下的像素）
+    locator_roi: List[float] = field(default_factory=lambda: [0.0, 0.0, 1.0, 1.0])
+    image_size: List[int] = field(default_factory=lambda: [0, 0])  # 训练图工作尺寸 w,h
+
+    @property
+    def has_locator(self) -> bool:
+        return bool(self.templates.get("locator"))
 
     @property
     def has_ring_template(self) -> bool:
@@ -56,6 +65,10 @@ class Model:
             "templates": self.templates,
             "stats": self.stats,
             "source_images": self.source_images,
+            "ring_center": self.ring_center,
+            "crop_half": self.crop_half,
+            "locator_roi": self.locator_roi,
+            "image_size": self.image_size,
         }
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(data, fh, ensure_ascii=False, indent=2)
@@ -72,7 +85,8 @@ class Model:
         m = Model()
         m.base_dir = os.path.dirname(os.path.abspath(path))
         for key in ("version", "created_at", "ring_roi", "a_roi",
-                    "templates", "stats", "source_images"):
+                    "templates", "stats", "source_images", "ring_center",
+                    "crop_half", "locator_roi", "image_size"):
             if key in data:
                 setattr(m, key, data[key])
         return m

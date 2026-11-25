@@ -140,6 +140,65 @@ class DetectionResult:
 
 
 # --------------------------------------------------------------------------- #
+# 裁剪模板法（新方案）：自动定位环心 → 裁固定小图 → 模板NCC判定
+# --------------------------------------------------------------------------- #
+def locate_ring_center(img_bgr, model: Model, cfg: DetectConfig):
+    """在训练标定的环心附近做局部微调搜索，返回 (cx, cy, score, ok)。
+
+    相机固定后环的大致位置恒定，只在种子位置附近小范围搜索，避免全图
+    NCC 把"有环小图"误匹配到别的金属纹理上（那会让环心跑偏、判错状态）。
+    状态3环被工件A遮挡时匹配分数很低，ok=False，调用方回退到种子环心。
+    """
+    h, w = img_bgr.shape[:2]
+    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    rc = getattr(model, "ring_center", [0.5, 0.5]) if model else [0.5, 0.5]
+    ex, ey = int((rc[0] or 0.5) * w), int((rc[1] or 0.5) * h)
+    if not model or not model.has_locator:
+        return ex, ey, 0.0, False
+    # 局部搜索窗口：围绕种子环心，半径取裁剪半径的1.5倍或短边12%
+    win = int(max(cfg.crop_half * 1.5, min(h, w) * 0.12))
+    x0, y0 = max(0, ex - win), max(0, ey - win)
+    x1, y1 = min(w, ex + win), min(h, ey + win)
+    search = gray[y0:y1, x0:x1]
+
+    best_score, best_loc, best_shape = -1.0, None, None
+    for t in model.template_images("locator"):
+        tg = cv2.cvtColor(t, cv2.COLOR_BGR2GRAY) if t.ndim == 3 else t
+        # 定位模板来自工作尺寸，运行时图可能同尺寸，直接比
+        score, loc = match_score(search, tg, cfg.locator_scale_search)
+        if score > best_score:
+            best_score, best_loc, best_shape = score, loc, tg.shape
+    if best_loc is None:
+        return ex, ey, 0.0, False
+    th, tw = best_shape
+    cx = int(x0 + best_loc[0] + tw / 2)
+    cy = int(y0 + best_loc[1] + th / 2)
+    return cx, cy, float(max(0.0, best_score)), best_score >= cfg.locator_th
+
+
+def crop_at_center(img_bgr, cx, cy, half):
+    """以 (cx,cy) 为中心裁 2*half 见方的小图，越界处补边。"""
+    h, w = img_bgr.shape[:2]
+    x0, y0 = cx - half, cy - half
+    x1, y1 = cx + half, cy + half
+    if x0 < 0 or y0 < 0 or x1 > w or y1 > h:
+        pad = max(0, -x0, -y0, x1 - w, y1 - h)
+        padded = cv2.copyMakeBorder(img_bgr, pad, pad, pad, pad,
+                                    cv2.BORDER_REPLICATE)
+        return padded[y0 + pad:y1 + pad, x0 + pad:x1 + pad]
+    return img_bgr[y0:y1, x0:x1]
+
+
+def _ncc_scores(gray_crop, templates, scale_search=0.0):
+    scores = []
+    for t in templates:
+        tg = cv2.cvtColor(t, cv2.COLOR_BGR2GRAY) if t.ndim == 3 else t
+        scores.append(match_score(gray_crop, _fit_template(tg, gray_crop),
+                                  scale_search)[0])
+    return scores
+
+
+# --------------------------------------------------------------------------- #
 # 环检测器
 # --------------------------------------------------------------------------- #
 class RingDetector:
@@ -148,6 +207,10 @@ class RingDetector:
         self.model = model
 
     def detect(self, img_bgr: np.ndarray) -> DetectionResult:
+        # ===== 新方案：裁剪模板法 =====
+        if self.cfg.ring_mode == "crop_template":
+            return self._detect_crop_template(img_bgr)
+
         geo = geometry_detect(img_bgr, self.cfg)
         res = DetectionResult(geometry=geo, overlay=geo["overlay"].copy())
 
@@ -192,6 +255,54 @@ class RingDetector:
             else:
                 res.ring_state = geo["verdict"]
                 res.notes = "模板不显著，回退几何法"
+        return res
+
+    def _detect_crop_template(self, img_bgr: np.ndarray) -> DetectionResult:
+        """裁剪模板法：定位环心→裁小图→present/absent模板NCC。"""
+        h, w = img_bgr.shape[:2]
+        res = DetectionResult()
+        res.overlay = img_bgr.copy()
+        if not self.model or not self.model.has_ring_template:
+            res.notes = "裁剪模板法缺模型（请先训练）"
+            return res
+
+        half = int(getattr(self.model, "crop_half", 0) or self.cfg.crop_half)
+        rc = getattr(self.model, "ring_center", [0.0, 0.0])
+        def_x, def_y = (int(rc[0] * w), int(rc[1] * h)) if rc and rc[0] > 0 else (int(w / 2), int(h / 2))
+        if getattr(self.cfg, "use_locator", False):
+            cx, cy, loc_score, loc_ok = locate_ring_center(img_bgr, self.model, self.cfg)
+            if not loc_ok:
+                cx, cy = def_x, def_y
+        else:
+            # 相机固定：直接用训练标定的环心（最稳）
+            cx, cy, loc_score, loc_ok = def_x, def_y, 0.0, True
+        res.geometry = {"cx": cx, "cy": cy, "locator_score": loc_score,
+                        "locator_ok": loc_ok, "crop_half": half}
+        crop = crop_at_center(img_bgr, cx, cy, half)
+        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+
+        ps = _ncc_scores(gray, self.model.template_images("present"),
+                         self.cfg.scale_search)
+        ns = _ncc_scores(gray, self.model.template_images("absent"),
+                         self.cfg.scale_search)
+        p = max(ps) if ps else 0.0
+        n = max(ns) if ns else 0.0
+        res.ring_present_score, res.ring_absent_score = p, n
+
+        if p >= self.cfg.ring_ncc_th and p - n >= self.cfg.template_margin:
+            res.ring_state = "PLACED"
+        elif n >= self.cfg.ring_ncc_th and n - p >= self.cfg.template_margin:
+            res.ring_state = "ABSENT"
+        else:
+            # 两个模板都不够像：状态3遮挡时会走到这里，用定位分数辅助判断
+            res.ring_state = "UNCERTAIN"
+
+        # 标注：裁剪框 + 环心 + 分数
+        cv2.rectangle(res.overlay, (cx - half, cy - half),
+                      (cx + half, cy + half), (0, 200, 255), 2)
+        cv2.circle(res.overlay, (cx, cy), 4, (0, 255, 0), -1)
+        res.notes = (f"定位={'OK' if loc_ok else '回退'}({loc_score:.2f}) "
+                     f"环NCC 有={p:.2f} 无={n:.2f}")
         return res
 
 
@@ -298,6 +409,10 @@ class ADetector:
         return res.a_score >= self.cfg.a_score_th
 
     def detect(self, img_bgr: np.ndarray, res: DetectionResult) -> DetectionResult:
+        # 新方案：裁剪模板法下，A 判定也用同一环心裁图 + A模板NCC
+        if self.cfg.ring_mode == "crop_template":
+            return self._detect_crop_template(img_bgr, res)
+
         self._center_clear(img_bgr, res)
         votes = []
         mode = self.cfg.a_feature_mode
@@ -320,6 +435,22 @@ class ADetector:
             f"A孔={'Y' if res.a_hole_ok else 'N'} "
             f"A横边={'Y' if res.a_edge_ok else 'N'} "
             f"中心清空={'Y' if res.center_clear else 'N'}({res.center_edge:.3f})")
+        return res
+
+    def _detect_crop_template(self, img_bgr, res: DetectionResult) -> DetectionResult:
+        """A判定（裁剪模板法）：环心裁图与A模板比NCC。"""
+        if not self.model or not self.model.has_a_template:
+            res.notes = (res.notes + " / " if res.notes else "") + "缺A模板"
+            return res
+        geo = res.geometry
+        cx, cy = geo.get("cx", int(img_bgr.shape[1] / 2)), geo.get("cy", int(img_bgr.shape[0] / 2))
+        half = geo.get("crop_half", self.cfg.crop_half)
+        crop = crop_at_center(img_bgr, cx, cy, half)
+        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+        scores = _ncc_scores(gray, self.model.template_images("a"), self.cfg.scale_search)
+        res.a_score = max(scores) if scores else 0.0
+        res.a_present = res.a_score >= self.cfg.a_ncc_th
+        res.notes = (res.notes + " / " if res.notes else "") + f"A_NCC={res.a_score:.2f}"
         return res
 
 

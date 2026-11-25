@@ -37,9 +37,9 @@ def main():
     if len(files) != 3:
         raise RuntimeError(f"sim_images 需要 3 张图片，实际 {len(files)} 张")
 
-    lines = ["=== 1→2→3 模拟报告 ===",
-             f"阈值 valley_th={d.valley_th}  ring_mode={d.ring_mode}  "
-             f"a_mode={d.a_feature_mode}  require_center_clear={d.require_center_clear}",
+    lines = ["=== 1→2→3 模拟报告（裁剪模板法）===",
+             f"ring_mode={d.ring_mode}  ring_ncc_th={d.ring_ncc_th}  "
+             f"a_ncc_th={d.a_ncc_th}  use_locator={d.use_locator}",
              ""]
     annotated = []
 
@@ -60,8 +60,8 @@ def main():
 
         lines.append(
             f"[{idx}] {os.path.basename(path)}: ring={res.ring_state} "
-            f"valley={res.geometry.get('valley'):.1f} "
-            f"A_score={res.a_score:.3f} A={res.a_present} "
+            f"环NCC 有={res.ring_present_score:.3f}/无={res.ring_absent_score:.3f} "
+            f"A_NCC={res.a_score:.3f} A={res.a_present} "
             f"→ state={state.value} event={event.value} msg={msg}"
         )
         ov = res.overlay.copy()

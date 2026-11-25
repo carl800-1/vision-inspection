@@ -48,6 +48,10 @@ def main(argv=None):
                    help="A横边搜索区，归一化四数")
     p.add_argument("--center-roi", nargs=4, type=float, metavar=("X", "Y", "W", "H"),
                    help="中心轴/环遮挡检测区，归一化四数")
+    p.add_argument("--ring-center", nargs=2, type=float, metavar=("X", "Y"),
+                   help="环心种子（归一化0~1），不填则训练时自动定位")
+    p.add_argument("--crop-half", type=int, default=0,
+                   help="以环心为中心的裁剪半径（像素），0 表示用配置值")
     args = p.parse_args(argv)
 
     if args.init_config:
@@ -64,6 +68,10 @@ def main(argv=None):
         value = getattr(args, arg_name)
         if value:
             setattr(cfg.detect, field_name, list(value))
+    if args.ring_center:
+        cfg.detect.ring_center = list(args.ring_center)
+    if args.crop_half:
+        cfg.detect.crop_half = args.crop_half
     model_path = args.model or os.path.join(HERE, cfg.paths.model)
     if not os.path.isabs(model_path):
         model_path = os.path.join(HERE, model_path)

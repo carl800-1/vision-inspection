@@ -1,8 +1,8 @@
-=== 1→2→3 模拟报告 ===
-阈值 valley_th=82.0  ring_mode=geometry  a_mode=hybrid  require_center_clear=True
+=== 1→2→3 模拟报告（裁剪模板法）===
+ring_mode=crop_template  ring_ncc_th=0.62  a_ncc_th=0.55  use_locator=False
 
-[1] 01_no_ring.jpg: ring=ABSENT valley=90.9 A_score=0.374 A=False → state=IDLE event=NONE msg=等待环放置（状态1）
-[2] 02_with_ring.jpg: ring=PLACED valley=73.1 A_score=0.323 A=False → state=RING_READY event=CYCLE_START msg=周期开始：已检测到环（状态2），等待工件A
-[3] 03_workpiece_a.jpg: ring=UNCERTAIN valley=82.1 A_score=0.999 A=True → state=CYCLE_DONE event=CYCLE_OK msg=OK：工件A到位，本周期结束（状态3）
+[1] 01_no_ring.jpg: ring=ABSENT 环NCC 有=0.462/无=1.000 A_NCC=0.000 A=False → state=IDLE event=NONE msg=等待环放置（状态1）
+[2] 02_with_ring.jpg: ring=PLACED 环NCC 有=1.000/无=0.423 A_NCC=0.000 A=False → state=RING_READY event=CYCLE_START msg=周期开始：已检测到环（状态2），等待工件A
+[3] 03_workpiece_a.jpg: ring=UNCERTAIN 环NCC 有=0.000/无=0.000 A_NCC=1.000 A=True → state=CYCLE_DONE event=CYCLE_OK msg=OK：工件A到位，本周期结束（状态3）
 
 最终状态=CYCLE_DONE  OK=1  异常=0
