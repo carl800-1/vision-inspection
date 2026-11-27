@@ -58,3 +58,11 @@ logs/
 
 # ===== WorkBuddy 内部数据 =====
 .workbuddy/
+
+# ===== 本地验证/冒烟临时产物（不入库） =====
+_*.png
+_repro_inbox/
+_ui_smoke_inbox/
+_auto_smoke_imgs/
+demo_flow_inbox/
+_verify_*.py

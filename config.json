@@ -74,6 +74,8 @@
     ],
     "center_edge_th": 0.22,
     "require_center_clear": true,
+    "shaft_crop_ratio": 0.35,
+    "shaft_ncc_th": 0.6,
     "ring_confirm_frames": 3,
     "a_confirm_frames": 2,
     "ring_removal_is_fault": true,
@@ -86,5 +88,26 @@
     "events": "captures/events",
     "logs": "logs"
   },
-  "app_version": "1.0.2"
+  "demo_flow": {
+    "source_dir": "dataset",
+    "target_dir": "demo_flow_inbox",
+    "judge_rule": "hybrid",
+    "auto_pass_states": [],
+    "interval_ms": 1500,
+    "loop": false,
+    "copy_to_target": true,
+    "clear_target": true
+  },
+  "auto_flow": {
+    "interval_ms": 1000,
+    "photo_timeout_ms": 3000,
+    "max_invalid_retries": 3,
+    "require_shaft": true,
+    "require_confident": true,
+    "bearing_confirm": 2,
+    "alarm_enabled": true,
+    "alarm_sound": "",
+    "save_captures": true
+  },
+  "app_version": "1.0.7"
 }

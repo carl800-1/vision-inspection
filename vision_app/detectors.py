@@ -128,6 +128,9 @@ class DetectionResult:
     a_hole_center = None
     center_edge: float = 0.0
     center_clear: bool = False
+    # 主轴判据：环心裁剪小图中央区域与轴模板 NCC，高于阈值视为“有主轴”
+    shaft_present: bool = False
+    shaft_score: float = 0.0
     notes: str = ""
     overlay: object = field(default=None, repr=False)
 
@@ -196,6 +199,42 @@ def _ncc_scores(gray_crop, templates, scale_search=0.0):
         scores.append(match_score(gray_crop, _fit_template(tg, gray_crop),
                                   scale_search)[0])
     return scores
+
+
+def center_square(gray, ratio: float = 0.35):
+    """取灰度图中央正方形子区（主轴端面所在区域）。"""
+    if gray is None or gray.ndim != 2:
+        return None
+    h, w = gray.shape[:2]
+    side = max(16, int(min(h, w) * max(0.1, min(0.95, ratio))))
+    x0, y0 = (w - side) // 2, (h - side) // 2
+    return gray[y0:y0 + side, x0:x0 + side]
+
+
+def shaft_ncc(gray_crop, model: Optional[Model], cfg: DetectConfig) -> float:
+    """主轴端面 NCC 分数。
+
+    优先用训练时保存的 shaft 模板；老模型没有 shaft 模板时，自动从 absent
+    （无环）模板的中央子区生成，保证旧模型无需重训即可升级。
+    """
+    target = center_square(gray_crop, getattr(cfg, "shaft_crop_ratio", 0.35))
+    if target is None:
+        return 0.0
+    templates = model.template_images("shaft") if model else []
+    if not templates and model:
+        for t in model.template_images("absent"):
+            tg = cv2.cvtColor(t, cv2.COLOR_BGR2GRAY) if t.ndim == 3 else t
+            sub = center_square(tg, getattr(cfg, "shaft_crop_ratio", 0.35))
+            if sub is not None:
+                templates.append(sub)
+    if not templates:
+        return 0.0
+    scores = []
+    for t in templates:
+        tg = cv2.cvtColor(t, cv2.COLOR_BGR2GRAY) if t.ndim == 3 else t
+        fitted = _fit_template(tg, target)
+        scores.append(match_score(target, fitted, 0.0)[0])
+    return max(scores) if scores else 0.0
 
 
 # --------------------------------------------------------------------------- #
@@ -289,6 +328,10 @@ class RingDetector:
         n = max(ns) if ns else 0.0
         res.ring_present_score, res.ring_absent_score = p, n
 
+        # 主轴端面：中央子区 NCC（状态1≈1.0，状态2≈0.0，状态3<0）
+        res.shaft_score = shaft_ncc(gray, self.model, self.cfg)
+        res.shaft_present = res.shaft_score >= getattr(self.cfg, "shaft_ncc_th", 0.60)
+
         if p >= self.cfg.ring_ncc_th and p - n >= self.cfg.template_margin:
             res.ring_state = "PLACED"
         elif n >= self.cfg.ring_ncc_th and n - p >= self.cfg.template_margin:
@@ -302,7 +345,7 @@ class RingDetector:
                       (cx + half, cy + half), (0, 200, 255), 2)
         cv2.circle(res.overlay, (cx, cy), 4, (0, 255, 0), -1)
         res.notes = (f"定位={'OK' if loc_ok else '回退'}({loc_score:.2f}) "
-                     f"环NCC 有={p:.2f} 无={n:.2f}")
+                     f"环NCC 有={p:.2f} 无={n:.2f} 轴={res.shaft_score:.2f}")
         return res
 
 
@@ -485,7 +528,9 @@ class VisionPipeline:
         res = self.a.detect(work, res)
         color = {"PLACED": (0, 170, 0), "ABSENT": (0, 0, 200),
                  "UNCERTAIN": (0, 165, 255)}[res.ring_state]
-        text = f"state {res.state_index} | ring={res.ring_state} | A={'YES' if res.a_present else 'NO'}"
+        text = (f"state {res.state_index} | ring={res.ring_state} "
+                f"| shaft={'YES' if res.shaft_present else 'NO'} "
+                f"| A={'YES' if res.a_present else 'NO'}")
         res.overlay = draw_label(res.overlay, text, color)
 
         if scale < 1.0:

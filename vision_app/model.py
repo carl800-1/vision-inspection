@@ -42,6 +42,11 @@ class Model:
     def has_a_template(self) -> bool:
         return bool(self.templates.get("a"))
 
+    @property
+    def has_shaft_template(self) -> bool:
+        """主轴端面模板（自动从无环样本中心区生成）。"""
+        return bool(self.templates.get("shaft"))
+
     def template_images(self, key: str):
         """返回该类别的 BGR 模板图列表（读取失败自动跳过）。"""
         out = []

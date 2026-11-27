@@ -2,11 +2,12 @@
 
 
 a = Analysis(
-    ['ring_inspector.py'],
+    ['ring_inspector_v2.py'],
     pathex=[],
     binaries=[],
     datas=[('demo_images', 'demo_images'), ('app_icon.ico', '.'), ('C:/Users/Chenzhichao/AppData/Roaming/Python/Python313/site-packages/hik_camera/MvCameraNode-CH.csv', 'hik_camera')],
-    hiddenimports=['hik_camera', 'boxx'],
+    hiddenimports=['hik_camera', 'boxx', 'vision_app', 'vision_app.demo_flow',
+                   'vision_app.auto_flow'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

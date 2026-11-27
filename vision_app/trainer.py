@@ -215,6 +215,22 @@ class Trainer:
         model.templates["absent"] = save_set("absent", absent)
         model.templates["a"] = save_set("a", a_imgs) if a_imgs else []
 
+        # 主轴端面模板：从状态1（无环）样本的环心小图中央子区生成。
+        # 现场实测中央 35% 子区 NCC：状态1≈1.00 / 状态2≈0.00 / 状态3≈-0.18。
+        from .detectors import center_square
+        shaft_paths = []
+        for i, (_p, img) in enumerate(absent[:4]):
+            work = self._work_image(img)
+            h2, w2 = work.shape[:2]
+            c2x, c2y = int(rc[0] * w2), int(rc[1] * h2)
+            pp = crop_at_center(work, c2x, c2y, half)
+            pg = cv2.cvtColor(pp, cv2.COLOR_BGR2GRAY) if pp.ndim == 3 else pp
+            sub = center_square(pg, getattr(cfg, "shaft_crop_ratio", 0.35))
+            if sub is not None:
+                shaft_paths.append(save_template_image(model, model_path, "shaft", sub, i))
+        model.templates["shaft"] = shaft_paths
+        self.report.append(f"主轴模板：{len(shaft_paths)} 张（取自无环样本中心区）")
+
         # 校验三类模板的分离度
         def best(key, work):
             h2, w2 = work.shape[:2]

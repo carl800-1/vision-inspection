@@ -74,11 +74,70 @@ class DetectConfig:
     center_edge_th: float = 0.22        # 中心区域边缘密度阈值：低于此值认为轴与环同时消失
     require_center_clear: bool = True   # 状态3必须同时满足“中心轴/环消失”
 
+    # --- 主轴判据（自动拍照流程用） ---
+    # 主轴端面位于环心裁剪小图的中央；取中央正方形子区与示教轴模板做 NCC。
+    # 现场实测（三张新图）：状态1=1.00，状态2≈0.00，状态3≈-0.18。
+    shaft_crop_ratio: float = 0.35      # 轴模板边长 / 裁剪小图边长
+    shaft_ncc_th: float = 0.60          # 高于此值认为“有主轴”
+
     # --- 去抖与业务流程 ---
     ring_confirm_frames: int = 3        # 环状态连续确认帧数
     a_confirm_frames: int = 2           # A 出现连续确认帧数
     ring_removal_is_fault: bool = True  # 锁存有环后、A 出现前环消失 → 报警
     save_event_frames: bool = True      # 关键事件保存原始帧到 captures/events
+
+
+@dataclass
+class DemoFlowConfig:
+    """照片流程演示：把示例照片按顺序放入目标文件夹并逐张判定。
+
+    source_dir   示例照片来源目录（相对程序目录或绝对路径）。
+                 若是数据集根目录（含 state1/2/3 子目录），按 无环→有环→A 排序。
+    target_dir   演示目标文件夹，照片以 001_/002_... 序号前缀复制进去。
+    judge_rule   manual=只看人工通过/不通过；auto=只看自动检测；
+                 hybrid=自动给建议、人工确认（最终取人工）。
+    auto_pass_states 自动判定视为"通过"的状态机状态列表。
+    interval_ms  自动逐张播放间隔（毫秒）。
+    loop         播放到末尾是否从头循环。
+    copy_to_target prepare 时是否把来源照片复制进目标文件夹。
+    clear_target prepare 时是否先清空目标文件夹（保证可重复运行）。
+    """
+    source_dir: str = "dataset"
+    target_dir: str = "demo_flow_inbox"
+    judge_rule: str = "hybrid"
+    auto_pass_states: list = field(default_factory=lambda: [])
+    interval_ms: int = 1500
+    loop: bool = False
+    copy_to_target: bool = True
+    clear_target: bool = True
+
+
+@dataclass
+class AutoFlowConfig:
+    """连接相机后的自动拍照检测流程参数。
+
+    interval_ms        拍照间隔，默认 1000ms（每秒一张）。
+    photo_timeout_ms   有效照片等待超时；启动后/等待下一张时超过它仍未拿到
+                       有效照片，判“漏装”并报警。
+    max_invalid_retries 连续拍照/检测失败的最大次数；超过后按超时处理。
+    require_shaft      启动条件是否要求同时检测到主轴（有主轴+无轴承）。
+    require_confident  环状态 UNCERTAIN 且未检出工件A的照片视为“检测失败”，
+                       不计有效照片（A 遮挡帧的 UNCERTAIN 属正常，会放行）。
+    bearing_confirm    已废弃：本件完成依据改为「检测到工件A」，保留字段仅为
+                       兼容旧配置文件，不再参与判定。
+    alarm_enabled      漏装时是否触发报警（蜂鸣 + 界面闪烁）。
+    alarm_sound        可选报警音频文件（WAV），为空则用系统提示音。
+    save_captures      自动流程的每张有效照片是否保存到 captures/auto。
+    """
+    interval_ms: int = 1000
+    photo_timeout_ms: int = 3000
+    max_invalid_retries: int = 3
+    require_shaft: bool = True
+    require_confident: bool = True
+    bearing_confirm: int = 2
+    alarm_enabled: bool = True
+    alarm_sound: str = ""
+    save_captures: bool = True
 
 
 @dataclass
@@ -96,7 +155,9 @@ class AppConfig:
     camera: CameraConfig = field(default_factory=CameraConfig)
     detect: DetectConfig = field(default_factory=DetectConfig)
     paths: PathConfig = field(default_factory=PathConfig)
-    app_version: str = "1.0.2"
+    demo_flow: DemoFlowConfig = field(default_factory=DemoFlowConfig)
+    auto_flow: AutoFlowConfig = field(default_factory=AutoFlowConfig)
+    app_version: str = "1.0.7"
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

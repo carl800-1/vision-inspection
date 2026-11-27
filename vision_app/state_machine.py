@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """事件驱动防错状态机（不使用时间窗口）。
 
-三个正常状态对应三张照片：
-    1 = 无环、无A        → IDLE（周期未开始）
-    2 = 有环、无A        → RING_READY（周期开始并锁存）
-    3 = A出现（环被遮挡） → CYCLE_DONE（本件合格，周期结束）
+检测事件与显示状态（安装结束与待机合并为一个状态）：
+    检测到轴（无环、无A）   → 安装结束/待机（IDLE，自保持）
+    检测到轴承（有环、无A） → RING_READY（显示「放置轴承」，锁存）
+    检测到工件A（环被遮挡） → 本件完成，回到 安装结束/待机（IDLE）
 
-异常：
-    A 在 IDLE 出现               → FAULT（漏放环，停机检查）
-    RING_READY 时环在A前消失     → FAULT（环被取走，可选）
+异常（漏装，需人工复位）：
+    无轴承态（检测到轴之后）出现工件A → FAULT（A先于轴承，漏放环）
+    RING_READY 时环在A前消失          → FAULT（环被取走，可选）
     FAULT 需人工复位
 """
 from __future__ import annotations
@@ -19,10 +19,9 @@ from typing import Optional, Tuple
 
 
 class CycleState(Enum):
-    IDLE = "IDLE"                     # 状态1：等待环
-    RING_READY = "RING_READY"         # 状态2：已锁存有环
-    CYCLE_DONE = "CYCLE_DONE"         # 状态3：A到位，本周期结束
-    FAULT = "FAULT"                   # 异常锁存
+    IDLE = "IDLE"                     # 安装结束/待机（合并态）：等待检测到轴
+    RING_READY = "RING_READY"         # 放置轴承：已锁存有环，等待工件A
+    FAULT = "FAULT"                   # 异常锁存（漏装）
 
 
 class Event(Enum):
@@ -68,13 +67,15 @@ class PokerStateMachine:
         self.ring_removal_is_fault = ring_removal_is_fault
         self.ok_count = 0
         self.fault_count = 0
+        self.await_removal = False   # 刚完成的工件尚未取下（重复检测自保持）
         self.last_event = Event.NONE
-        self.last_message = "等待环放置（状态1）"
+        self.last_message = "安装结束/待机：等待检测到轴或轴承"
 
     def reset(self):
         self.state = CycleState.IDLE
+        self.await_removal = False
         self.last_event = Event.RESET
-        self.last_message = "已复位，等待环放置"
+        self.last_message = "已复位，安装结束/待机"
 
     def feed(self, ring_state: str, a_present: bool) -> Tuple[CycleState, Event, str]:
         """输入已去抖的环状态与A状态，返回 (状态, 事件, 提示)。"""
@@ -86,42 +87,43 @@ class PokerStateMachine:
             return self.state, self.last_event, self.last_message
 
         if self.state == CycleState.IDLE:
+            # 安装结束/待机（合并态）
             if a_present:
-                self.state = CycleState.FAULT
-                self.fault_count += 1
-                self.last_event = Event.FAULT_A_FIRST
-                self.last_message = "异常：工件A先于环出现（漏放环），请停机检查"
-            elif ring_state == "PLACED":
-                self.state = CycleState.RING_READY
-                self.last_event = Event.CYCLE_START
-                self.last_message = "周期开始：已检测到环（状态2），等待工件A"
+                if self.await_removal:
+                    self.last_message = "安装结束/待机：工件A仍在位（重复检测），保持待机"
+                else:
+                    self.state = CycleState.FAULT
+                    self.fault_count += 1
+                    self.last_event = Event.FAULT_A_FIRST
+                    self.last_message = "漏装：工件A先于轴承出现（顺序异常），请停机检查"
             else:
-                self.last_message = "等待环放置（状态1）"
+                self.await_removal = False   # 工件已取下，下一件从头计
+                if ring_state == "PLACED":
+                    self.state = CycleState.RING_READY
+                    self.last_event = Event.CYCLE_START
+                    self.last_message = "检测到轴承 → 放置轴承，等待工件A"
+                elif ring_state == "ABSENT":
+                    self.last_message = "安装结束/待机：检测到轴（无轴承），等待放置轴承"
+                else:
+                    self.last_message = "安装结束/待机：画面不确定，保持待机"
 
         elif self.state == CycleState.RING_READY:
             if a_present:
-                self.state = CycleState.CYCLE_DONE
                 self.ok_count += 1
+                self.state = CycleState.IDLE
+                self.await_removal = True
                 self.last_event = Event.CYCLE_OK
-                self.last_message = "OK：工件A到位，本周期结束（状态3）"
+                self.last_message = "OK：检测到工件A，安装结束 → 安装结束/待机"
             elif ring_state == "ABSENT" and self.ring_removal_is_fault:
                 self.state = CycleState.FAULT
                 self.fault_count += 1
                 self.last_event = Event.FAULT_RING_REMOVED
-                self.last_message = "异常：环在工件A到位前被取走"
+                self.last_message = "漏装：轴承在工件A到位前被取走"
             elif ring_state == "ABSENT":
                 self.state = CycleState.IDLE
-                self.last_message = "环已取走，回到等待状态（未计OK）"
+                self.last_message = "轴承被取走，回到安装结束/待机（未计OK）"
             else:
-                self.last_message = "环已锁存，等待工件A（状态2）"
-
-        elif self.state == CycleState.CYCLE_DONE:
-            # A 撤走且环也不在 → 允许下一件；A 仍在则保持完成态
-            if not a_present and ring_state == "ABSENT":
-                self.state = CycleState.IDLE
-                self.last_message = "工件已取下，等待下一件（状态1）"
-            else:
-                self.last_message = "本件已完成（状态3），等待取件"
+                self.last_message = "放置轴承：环已锁存，等待工件A"
 
         return self.state, self.last_event, self.last_message
 
@@ -130,6 +132,5 @@ class PokerStateMachine:
         return {
             CycleState.IDLE: 1,
             CycleState.RING_READY: 2,
-            CycleState.CYCLE_DONE: 3,
             CycleState.FAULT: 0,
         }[self.state]
